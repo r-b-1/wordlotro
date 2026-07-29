@@ -1,3 +1,3 @@
-# scheduling_app
+# Wordlotro
 
 A new Flutter project.
