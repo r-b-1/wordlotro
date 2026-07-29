@@ -1,5 +1,5 @@
-name: scheduling_app
-description: "A new Flutter project."
+name: wordlotro
+description: "A rogue-like, wordle-like, balatro-like, fun game!"
 publish_to: 'none'
 version: 0.1.0
 
