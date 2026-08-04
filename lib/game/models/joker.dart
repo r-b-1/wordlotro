@@ -15,6 +15,9 @@ enum JokerEffectType {
 
   /// Add [value] Mult if the poker hand contains a pair-family.
   multIfContainsPair,
+
+  /// Add [value] Chips if the poker hand contains a pair-family.
+  chipsIfContainsPair,
 }
 
 class Joker {
@@ -55,6 +58,36 @@ class Joker {
     suit: Suit.diamonds,
   );
 
+  static const Joker lustyJoker = Joker(
+    id: 'lusty_joker',
+    name: 'Lusty Joker',
+    description: '+3 Mult per scored Heart',
+    cost: 5,
+    effectType: JokerEffectType.multPerScoredSuit,
+    value: 3,
+    suit: Suit.hearts,
+  );
+
+  static const Joker wrathfulJoker = Joker(
+    id: 'wrathful_joker',
+    name: 'Wrathful Joker',
+    description: '+3 Mult per scored Spade',
+    cost: 5,
+    effectType: JokerEffectType.multPerScoredSuit,
+    value: 3,
+    suit: Suit.spades,
+  );
+
+  static const Joker gluttonousJoker = Joker(
+    id: 'gluttonous_joker',
+    name: 'Gluttonous Joker',
+    description: '+3 Mult per scored Club',
+    cost: 5,
+    effectType: JokerEffectType.multPerScoredSuit,
+    value: 3,
+    suit: Suit.clubs,
+  );
+
   static const Joker jollyJoker = Joker(
     id: 'jolly_joker',
     name: 'Jolly Joker',
@@ -62,6 +95,15 @@ class Joker {
     cost: 4,
     effectType: JokerEffectType.multIfContainsPair,
     value: 8,
+  );
+
+  static const Joker slyJoker = Joker(
+    id: 'sly_joker',
+    name: 'Sly Joker',
+    description: '+50 Chips if hand contains a Pair',
+    cost: 5,
+    effectType: JokerEffectType.chipsIfContainsPair,
+    value: 50,
   );
 
   static const Joker chippy = Joker(
@@ -76,7 +118,11 @@ class Joker {
   static const List<Joker> starterPool = [
     joker,
     greedyJoker,
+    lustyJoker,
+    wrathfulJoker,
+    gluttonousJoker,
     jollyJoker,
+    slyJoker,
     chippy,
   ];
 

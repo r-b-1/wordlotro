@@ -3,6 +3,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wordlotro/game/logic/hand_evaluator.dart';
 import 'package:wordlotro/game/logic/score_calculator.dart';
+import 'package:wordlotro/game/models/boss_blind.dart';
 import 'package:wordlotro/game/models/playing_card.dart';
 import 'package:wordlotro/game/models/poker_hand.dart';
 
@@ -56,5 +57,20 @@ void main() {
     expect(score.chips, 71);
     expect(score.multiplier, 4);
     expect(score.total, 284);
+  });
+
+  test('diamond tax zeroes scored diamond chip values', () {
+    final played = [c(Suit.diamonds, Rank.nine), c(Suit.hearts, Rank.nine)];
+    final hand = evaluator.evaluate(played);
+    final score = calculator.calculate(
+      playedCards: played,
+      hand: hand,
+      bossEffect: BossBlindEffect.diamondTax,
+    );
+
+    // base 10 + 0 (diamond) + 9 (heart) = 19 × 2 = 38
+    expect(score.chips, 19);
+    expect(score.multiplier, 2);
+    expect(score.total, 38);
   });
 }

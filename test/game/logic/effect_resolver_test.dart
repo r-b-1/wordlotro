@@ -96,4 +96,27 @@ void main() {
 
     expect(result.multiplier, 1);
   });
+
+  test('sly joker adds chips for pair-family hands', () {
+    final result = resolver.resolve(
+      base: base,
+      hand: pairHand,
+      scoringCards: pairHand.scoringCards,
+      jokers: const [Joker.slyJoker],
+    );
+
+    expect(result.chips, 78);
+    expect(result.multiplier, 2);
+  });
+
+  test('lusty joker adds mult per scored heart', () {
+    final result = resolver.resolve(
+      base: base,
+      hand: pairHand,
+      scoringCards: pairHand.scoringCards,
+      jokers: const [Joker.lustyJoker],
+    );
+
+    expect(result.multiplier, 5); // 2 + 3 for one heart
+  });
 }
