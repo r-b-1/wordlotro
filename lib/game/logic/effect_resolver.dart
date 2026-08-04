@@ -35,6 +35,10 @@ class EffectResolver {
           if (Joker.handContainsPair(hand.type)) {
             mult += joker.value;
           }
+        case JokerEffectType.chipsIfContainsPair:
+          if (Joker.handContainsPair(hand.type)) {
+            chips += joker.value;
+          }
       }
     }
 

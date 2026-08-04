@@ -88,19 +88,22 @@ class PlayingCard {
     required this.suit,
     required this.rank,
     this.isSelected = false,
+    this.isFaceDown = false,
   });
 
   final String id;
   final Suit suit;
   final Rank rank;
   final bool isSelected;
+  final bool isFaceDown;
 
-  PlayingCard copyWith({bool? isSelected}) {
+  PlayingCard copyWith({bool? isSelected, bool? isFaceDown}) {
     return PlayingCard(
       id: id,
       suit: suit,
       rank: rank,
       isSelected: isSelected ?? this.isSelected,
+      isFaceDown: isFaceDown ?? this.isFaceDown,
     );
   }
 

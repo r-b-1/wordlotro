@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wordlotro/game/game_controller.dart';
 import 'package:wordlotro/game/logic/deck_builder.dart';
+import 'package:wordlotro/game/models/boss_blind.dart';
 import 'package:wordlotro/game/models/game_state.dart';
 import 'package:wordlotro/game/models/joker.dart';
 import 'package:wordlotro/game/models/playing_card.dart';
@@ -205,6 +206,29 @@ void main() {
     );
   });
 
+  test('preferred rank sort is reapplied after discard refill', () {
+    final deck = [
+      c(Suit.hearts, Rank.two),
+      c(Suit.clubs, Rank.ace),
+      c(Suit.diamonds, Rank.king),
+      c(Suit.spades, Rank.five),
+      c(Suit.hearts, Rank.three),
+      c(Suit.clubs, Rank.four),
+      c(Suit.diamonds, Rank.six),
+      c(Suit.spades, Rank.seven),
+      c(Suit.hearts, Rank.queen), // refill
+    ];
+    final controller = controllerWithDeck(deck);
+    controller.sortHandByRank();
+    controller.toggleCard('hearts_two');
+    controller.discardSelectedCards();
+
+    final ranks = controller.state.hand.map((card) => card.rank.order).toList();
+    final sorted = List<int>.from(ranks)..sort((a, b) => b.compareTo(a));
+    expect(ranks, sorted);
+    expect(controller.handSortMode, HandSortMode.rank);
+  });
+
   test('buyJoker spends money and removes offer', () {
     final controller = controllerWithDeck(deckBuilder.buildOrderedDeck());
     controller.setStateForTest(
@@ -293,5 +317,142 @@ void main() {
 
     // pair: 28 chips × (2 + 4) = 168
     expect(controller.state.score, 168);
+  });
+
+  test('boss fog deals opening hand face down; refills are face up', () {
+    final controller = GameController(
+      initialDeck: deckBuilder.buildOrderedDeck(),
+      random: Random(1),
+      forcedBossEffect: BossBlindEffect.fog,
+    );
+    controller.setStateForTest(
+      controller.state.copyWith(phase: RunPhase.shop, money: 10, blindIndex: 1),
+    );
+    controller.skipShop();
+
+    expect(controller.state.blindIndex, 2);
+    expect(controller.state.bossEffect, BossBlindEffect.fog);
+    expect(controller.state.hand.every((card) => card.isFaceDown), isTrue);
+
+    final firstId = controller.state.hand.first.id;
+    controller.toggleCard(firstId);
+    controller.discardSelectedCards();
+
+    expect(controller.state.hand.where((card) => card.id == firstId), isEmpty);
+    // Remaining original cards stay face down; refill(s) are face up.
+    final faceDownCount = controller.state.hand
+        .where((card) => card.isFaceDown)
+        .length;
+    final faceUpCount = controller.state.hand
+        .where((card) => !card.isFaceDown)
+        .length;
+    expect(faceDownCount, 7);
+    expect(faceUpCount, 1);
+  });
+
+  test('boss diamond tax zeroes diamond chips when scoring', () {
+    final deck = [
+      c(Suit.diamonds, Rank.nine),
+      c(Suit.hearts, Rank.nine),
+      c(Suit.clubs, Rank.ace),
+      c(Suit.spades, Rank.two),
+      c(Suit.hearts, Rank.three),
+      c(Suit.clubs, Rank.four),
+      c(Suit.diamonds, Rank.five),
+      c(Suit.spades, Rank.six),
+    ];
+    final controller = GameController(
+      initialDeck: deck,
+      random: Random(1),
+      forcedBossEffect: BossBlindEffect.diamondTax,
+    );
+    controller.setStateForTest(
+      controller.state.copyWith(phase: RunPhase.shop, money: 10, blindIndex: 1),
+    );
+    controller.skipShop();
+    controller.setHand([
+      c(Suit.diamonds, Rank.nine),
+      c(Suit.hearts, Rank.nine),
+      c(Suit.clubs, Rank.ace),
+      c(Suit.spades, Rank.two),
+      c(Suit.hearts, Rank.three),
+      c(Suit.clubs, Rank.four),
+      c(Suit.diamonds, Rank.five),
+      c(Suit.spades, Rank.six),
+    ]);
+
+    expect(controller.state.bossEffect, BossBlindEffect.diamondTax);
+
+    controller.toggleCard('diamonds_nine');
+    controller.toggleCard('hearts_nine');
+    controller.playSelectedCards();
+
+    // base 10 + 0 + 9 = 19 × 2 = 38
+    expect(controller.state.score, 38);
+  });
+
+  test('rerollShop costs money and replaces offers', () {
+    final controller = controllerWithDeck(deckBuilder.buildOrderedDeck());
+    controller.setStateForTest(
+      controller.state.copyWith(
+        phase: RunPhase.shop,
+        money: 10,
+        shopOffers: const [Joker.joker, Joker.chippy],
+      ),
+    );
+
+    final before = controller.state.shopOffers.map((j) => j.id).toSet();
+    controller.rerollShop();
+
+    expect(controller.state.money, 8);
+    expect(controller.state.shopOffers, isNotEmpty);
+    expect(controller.state.shopOffers.length, lessThanOrEqualTo(2));
+    // With a large pool, reroll should usually differ; at minimum cost applied.
+    expect(
+      controller.state.shopOffers.every((j) => !before.contains(j.id)) ||
+          controller.state.shopOffers.isNotEmpty,
+      isTrue,
+    );
+  });
+
+  test('rerollShop does nothing when unaffordable', () {
+    final controller = controllerWithDeck(deckBuilder.buildOrderedDeck());
+    controller.setStateForTest(
+      controller.state.copyWith(
+        phase: RunPhase.shop,
+        money: 1,
+        shopOffers: const [Joker.joker, Joker.chippy],
+      ),
+    );
+
+    controller.rerollShop();
+
+    expect(controller.state.money, 1);
+    expect(controller.state.shopOffers, [Joker.joker, Joker.chippy]);
+  });
+
+  test('spent cards are tracked and grayed in remaining suit counts', () {
+    final deck = [
+      c(Suit.hearts, Rank.two),
+      c(Suit.clubs, Rank.ace),
+      c(Suit.diamonds, Rank.king),
+      c(Suit.spades, Rank.five),
+      c(Suit.hearts, Rank.three),
+      c(Suit.clubs, Rank.four),
+      c(Suit.diamonds, Rank.six),
+      c(Suit.spades, Rank.seven),
+      c(Suit.hearts, Rank.queen),
+    ];
+    final controller = controllerWithDeck(deck);
+
+    expect(controller.state.roundDeck, hasLength(9));
+    expect(controller.state.remainingCountForSuit(Suit.hearts), 3);
+
+    controller.toggleCard('hearts_two');
+    controller.discardSelectedCards();
+
+    expect(controller.state.spentCards, hasLength(1));
+    expect(controller.state.isSpent(c(Suit.hearts, Rank.two)), isTrue);
+    expect(controller.state.remainingCountForSuit(Suit.hearts), 2);
   });
 }

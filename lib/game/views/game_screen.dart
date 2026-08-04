@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../game_controller.dart';
 import '../models/game_state.dart';
 import '../models/joker.dart';
+import 'widgets/deck_viewer.dart';
 import 'widgets/playing_card_view.dart';
 
 class GameScreen extends StatefulWidget {
@@ -19,6 +20,7 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   late final GameController _controller;
   late final bool _ownsController;
+  bool _showDeckViewer = false;
 
   @override
   void initState() {
@@ -53,7 +55,11 @@ class _GameScreenState extends State<GameScreen> {
                   ),
                   child: Column(
                     children: [
-                      _Header(state: state),
+                      _Header(
+                        state: state,
+                        onViewDeck: () =>
+                            setState(() => _showDeckViewer = true),
+                      ),
                       const SizedBox(height: 16),
                       _ScoreBoard(state: state),
                       const SizedBox(height: 12),
@@ -82,13 +88,20 @@ class _GameScreenState extends State<GameScreen> {
                 if (state.isShop)
                   _ShopOverlay(
                     state: state,
+                    canReroll: _controller.canRerollShop,
                     onBuy: _controller.buyJoker,
+                    onReroll: _controller.rerollShop,
                     onSkip: _controller.skipShop,
                   ),
                 if (state.isTerminal)
                   _TerminalOverlay(
                     state: state,
                     onRestart: _controller.restart,
+                  ),
+                if (_showDeckViewer)
+                  DeckViewer(
+                    state: state,
+                    onClose: () => setState(() => _showDeckViewer = false),
                   ),
               ],
             ),
@@ -100,9 +113,10 @@ class _GameScreenState extends State<GameScreen> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.state});
+  const _Header({required this.state, required this.onViewDeck});
 
   final GameState state;
+  final VoidCallback onViewDeck;
 
   @override
   Widget build(BuildContext context) {
@@ -120,7 +134,18 @@ class _Header extends StatelessWidget {
         const Spacer(),
         _StatChip(label: '\$', value: '${state.money}'),
         const SizedBox(width: 8),
-        _StatChip(label: 'Deck', value: '${state.deck.length}'),
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onViewDeck,
+            borderRadius: BorderRadius.circular(8),
+            child: _StatChip(
+              label: 'Deck',
+              value: '${state.deck.length}',
+              emphasized: true,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -154,6 +179,38 @@ class _ScoreBoard extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
+          if (state.bossEffect != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF4A1F2E),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE57373)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    state.bossEffect!.name,
+                    style: const TextStyle(
+                      color: Color(0xFFFF8A80),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                    ),
+                  ),
+                  Text(
+                    state.bossEffect!.description,
+                    style: const TextStyle(
+                      color: Color(0xFFFFCDD2),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           Row(
             children: [
@@ -243,23 +300,29 @@ class _ScoreLabel extends StatelessWidget {
 }
 
 class _StatChip extends StatelessWidget {
-  const _StatChip({required this.label, required this.value});
+  const _StatChip({
+    required this.label,
+    required this.value,
+    this.emphasized = false,
+  });
 
   final String label;
   final String value;
+  final bool emphasized;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF1B2430),
+        color: emphasized ? const Color(0xFF2E4057) : const Color(0xFF1B2430),
         borderRadius: BorderRadius.circular(8),
+        border: emphasized ? Border.all(color: const Color(0xFFE8A838)) : null,
       ),
       child: Text(
         '$label $value',
-        style: const TextStyle(
-          color: Color(0xFFD5E2EF),
+        style: TextStyle(
+          color: emphasized ? const Color(0xFFE8A838) : const Color(0xFFD5E2EF),
           fontSize: 13,
           fontWeight: FontWeight.w600,
         ),
@@ -307,7 +370,7 @@ class _JokerStrip extends StatelessWidget {
     }
 
     return SizedBox(
-      height: 72,
+      height: 84,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: jokers.length,
@@ -315,8 +378,8 @@ class _JokerStrip extends StatelessWidget {
         itemBuilder: (context, index) {
           final joker = jokers[index];
           return Container(
-            width: 120,
-            padding: const EdgeInsets.all(8),
+            width: 140,
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
             decoration: BoxDecoration(
               color: const Color(0xFF3D2A5C),
               borderRadius: BorderRadius.circular(8),
@@ -333,16 +396,21 @@ class _JokerStrip extends StatelessWidget {
                     color: Color(0xFFE8D5FF),
                     fontWeight: FontWeight.w800,
                     fontSize: 13,
+                    height: 1.2,
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  joker.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFFC4B0E0),
-                    fontSize: 11,
+                Expanded(
+                  child: Text(
+                    joker.description,
+                    softWrap: true,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFFC4B0E0),
+                      fontSize: 11,
+                      height: 1.25,
+                    ),
                   ),
                 ),
               ],
@@ -515,12 +583,16 @@ class _ActionBar extends StatelessWidget {
 class _ShopOverlay extends StatelessWidget {
   const _ShopOverlay({
     required this.state,
+    required this.canReroll,
     required this.onBuy,
+    required this.onReroll,
     required this.onSkip,
   });
 
   final GameState state;
+  final bool canReroll;
   final ValueChanged<String> onBuy;
+  final VoidCallback onReroll;
   final VoidCallback onSkip;
 
   @override
@@ -531,84 +603,120 @@ class _ShopOverlay extends StatelessWidget {
     return ColoredBox(
       color: Colors.black.withValues(alpha: 0.78),
       child: Center(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20),
-          padding: const EdgeInsets.all(20),
-          constraints: const BoxConstraints(maxWidth: 420),
-          decoration: BoxDecoration(
-            color: const Color(0xFF243447),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE8A838), width: 2),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'SHOP',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Color(0xFFE8A838),
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '${state.blindName} cleared · +\$${state.currentBlind.reward}',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xFFD5E2EF), fontSize: 14),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Money \$${state.money} · Jokers ${state.jokers.length}/${GameState.maxJokers}',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xFF9BB0C5), fontSize: 13),
-              ),
-              const SizedBox(height: 16),
-              if (state.shopOffers.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    'No jokers left to buy.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Color(0xFF9BB0C5)),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            constraints: const BoxConstraints(maxWidth: 420),
+            decoration: BoxDecoration(
+              color: const Color(0xFF243447),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE8A838), width: 2),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'SHOP',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Color(0xFFE8A838),
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.2,
                   ),
-                )
-              else
-                ...state.shopOffers.map(
-                  (joker) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _ShopOfferCard(
-                      joker: joker,
-                      canAfford:
-                          state.money >= joker.cost &&
-                          state.jokers.length < GameState.maxJokers,
-                      onBuy: () => onBuy(joker.id),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${state.blindName} cleared · +\$${state.currentBlind.reward}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFFD5E2EF),
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Money \$${state.money} · Jokers ${state.jokers.length}/${GameState.maxJokers}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFF9BB0C5),
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (state.shopOffers.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      'No jokers left to buy.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Color(0xFF9BB0C5)),
+                    ),
+                  )
+                else
+                  ...state.shopOffers.map(
+                    (joker) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _ShopOfferCard(
+                        joker: joker,
+                        canAfford:
+                            state.money >= joker.cost &&
+                            state.jokers.length < GameState.maxJokers,
+                        onBuy: () => onBuy(joker.id),
+                      ),
                     ),
                   ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: canReroll ? onReroll : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF5C6BC0),
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: const Color(0xFF2A3441),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: Text(
+                          'REROLL \$${GameState.shopRerollCost}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: onSkip,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4A5568),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: Text(
+                          skipLabel,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              const SizedBox(height: 8),
-              ElevatedButton(
-                onPressed: onSkip,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4A5568),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                child: Text(
-                  skipLabel,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
