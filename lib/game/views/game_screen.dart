@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../game_controller.dart';
 import '../models/game_state.dart';
+import '../models/joker.dart';
 import 'widgets/playing_card_view.dart';
 
 class GameScreen extends StatefulWidget {
@@ -58,7 +59,15 @@ class _GameScreenState extends State<GameScreen> {
                       const SizedBox(height: 12),
                       if (state.lastResult != null)
                         _ResultBanner(text: state.lastResult!),
+                      const SizedBox(height: 12),
+                      _JokerStrip(jokers: state.jokers),
                       const Spacer(),
+                      _SortBar(
+                        enabled: state.isPlaying,
+                        onSortRank: _controller.sortHandByRank,
+                        onSortSuit: _controller.sortHandBySuit,
+                      ),
+                      const SizedBox(height: 10),
                       _HandArea(state: state, onToggle: _controller.toggleCard),
                       const SizedBox(height: 20),
                       _ActionBar(
@@ -70,6 +79,12 @@ class _GameScreenState extends State<GameScreen> {
                     ],
                   ),
                 ),
+                if (state.isShop)
+                  _ShopOverlay(
+                    state: state,
+                    onBuy: _controller.buyJoker,
+                    onSkip: _controller.skipShop,
+                  ),
                 if (state.isTerminal)
                   _TerminalOverlay(
                     state: state,
@@ -103,6 +118,8 @@ class _Header extends StatelessWidget {
           ),
         ),
         const Spacer(),
+        _StatChip(label: '\$', value: '${state.money}'),
+        const SizedBox(width: 8),
         _StatChip(label: 'Deck', value: '${state.deck.length}'),
       ],
     );
@@ -129,6 +146,15 @@ class _ScoreBoard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(
+            'Ante ${state.ante} · ${state.blindName}',
+            style: const TextStyle(
+              color: Color(0xFF9BB0C5),
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
@@ -269,6 +295,108 @@ class _ResultBanner extends StatelessWidget {
   }
 }
 
+class _JokerStrip extends StatelessWidget {
+  const _JokerStrip({required this.jokers});
+
+  final List<Joker> jokers;
+
+  @override
+  Widget build(BuildContext context) {
+    if (jokers.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return SizedBox(
+      height: 72,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: jokers.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final joker = jokers[index];
+          return Container(
+            width: 120,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF3D2A5C),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFF8B6BC7)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  joker.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFFE8D5FF),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  joker.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFFC4B0E0),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SortBar extends StatelessWidget {
+  const _SortBar({
+    required this.enabled,
+    required this.onSortRank,
+    required this.onSortSuit,
+  });
+
+  final bool enabled;
+  final VoidCallback onSortRank;
+  final VoidCallback onSortSuit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton(
+            onPressed: enabled ? onSortRank : null,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFFD5E2EF),
+              side: const BorderSide(color: Color(0xFF3A4F66)),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+            ),
+            child: const Text('SORT RANK'),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: OutlinedButton(
+            onPressed: enabled ? onSortSuit : null,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFFD5E2EF),
+              side: const BorderSide(color: Color(0xFF3A4F66)),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+            ),
+            child: const Text('SORT SUIT'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _HandArea extends StatelessWidget {
   const _HandArea({required this.state, required this.onToggle});
 
@@ -308,9 +436,9 @@ class _HandArea extends StatelessWidget {
                       card: state.hand[i],
                       width: cardWidth,
                       height: cardHeight,
-                      onTap: state.isTerminal
-                          ? () {}
-                          : () => onToggle(state.hand[i].id),
+                      onTap: state.isPlaying
+                          ? () => onToggle(state.hand[i].id)
+                          : () {},
                     ),
                   ),
               ],
@@ -336,10 +464,9 @@ class _ActionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasSelection = state.selectedCards.isNotEmpty;
-    final canPlay =
-        hasSelection && state.handsRemaining > 0 && !state.isTerminal;
+    final canPlay = hasSelection && state.handsRemaining > 0 && state.isPlaying;
     final canDiscard =
-        hasSelection && state.discardsRemaining > 0 && !state.isTerminal;
+        hasSelection && state.discardsRemaining > 0 && state.isPlaying;
 
     return Row(
       children: [
@@ -385,6 +512,171 @@ class _ActionBar extends StatelessWidget {
   }
 }
 
+class _ShopOverlay extends StatelessWidget {
+  const _ShopOverlay({
+    required this.state,
+    required this.onBuy,
+    required this.onSkip,
+  });
+
+  final GameState state;
+  final ValueChanged<String> onBuy;
+  final VoidCallback onSkip;
+
+  @override
+  Widget build(BuildContext context) {
+    final isBoss = state.blindIndex >= BlindInfo.anteOne.length - 1;
+    final skipLabel = isBoss ? 'FINISH RUN' : 'NEXT BLIND';
+
+    return ColoredBox(
+      color: Colors.black.withValues(alpha: 0.78),
+      child: Center(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.all(20),
+          constraints: const BoxConstraints(maxWidth: 420),
+          decoration: BoxDecoration(
+            color: const Color(0xFF243447),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE8A838), width: 2),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'SHOP',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFFE8A838),
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${state.blindName} cleared · +\$${state.currentBlind.reward}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFFD5E2EF), fontSize: 14),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Money \$${state.money} · Jokers ${state.jokers.length}/${GameState.maxJokers}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFF9BB0C5), fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              if (state.shopOffers.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    'No jokers left to buy.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Color(0xFF9BB0C5)),
+                  ),
+                )
+              else
+                ...state.shopOffers.map(
+                  (joker) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _ShopOfferCard(
+                      joker: joker,
+                      canAfford:
+                          state.money >= joker.cost &&
+                          state.jokers.length < GameState.maxJokers,
+                      onBuy: () => onBuy(joker.id),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: onSkip,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4A5568),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: Text(
+                  skipLabel,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShopOfferCard extends StatelessWidget {
+  const _ShopOfferCard({
+    required this.joker,
+    required this.canAfford,
+    required this.onBuy,
+  });
+
+  final Joker joker;
+  final bool canAfford;
+  final VoidCallback onBuy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1B2430),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFF8B6BC7)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  joker.name,
+                  style: const TextStyle(
+                    color: Color(0xFFE8D5FF),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  joker.description,
+                  style: const TextStyle(
+                    color: Color(0xFFC4B0E0),
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          ElevatedButton(
+            onPressed: canAfford ? onBuy : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE8A838),
+              foregroundColor: const Color(0xFF1B2430),
+              disabledBackgroundColor: const Color(0xFF5A4A28),
+            ),
+            child: Text('\$${joker.cost}'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _TerminalOverlay extends StatelessWidget {
   const _TerminalOverlay({required this.state, required this.onRestart});
 
@@ -393,7 +685,7 @@ class _TerminalOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final won = state.status == RoundStatus.won;
+    final won = state.phase == RunPhase.runWon;
 
     return ColoredBox(
       color: Colors.black.withValues(alpha: 0.72),
@@ -413,7 +705,7 @@ class _TerminalOverlay extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                won ? 'BLIND CLEARED' : 'BUSTED',
+                won ? 'ANTE CLEARED' : 'BUSTED',
                 style: TextStyle(
                   color: won
                       ? const Color(0xFF5AD67D)
@@ -425,7 +717,9 @@ class _TerminalOverlay extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Score ${state.score} / ${state.targetScore}',
+                won
+                    ? 'You beat the Boss Blind'
+                    : 'Score ${state.score} / ${state.targetScore}',
                 style: const TextStyle(color: Color(0xFFD5E2EF), fontSize: 16),
               ),
               const SizedBox(height: 20),
